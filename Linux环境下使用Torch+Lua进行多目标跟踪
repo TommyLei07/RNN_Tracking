@@ -1,0 +1,103 @@
+安装环境：Ubuntu16.04
+1.安装torch
+	在终端输入：	
+		curl -s https://raw.githubusercontent.com/torch/ezinstall/master/install-deps | bash
+		git clone https://github.com/torch/distro.git ~/torch --recursive
+		cd ~/torch; ./install.sh
+	安装完成以后，在终端输入th，出现图案，显示安装成功
+2.安装luarocks
+	在终端依次输入：
+		sudo apt-get install luarocks
+		luarocks install nn
+		luarocks install nngraph
+		luarocks install luafilesystem
+		luarocks install https://raw.github.com/jucor/torch-distributions/master/distributions-0-0.rockspec
+		luarocks install cutorch
+		luarocks install cunn	
+
+3.下载数据集
+	https://motchallenge.net/data/2D_MOT_2015/
+	下载
+4.运行测试
+
+	在运行前需要先配置数据集路径，具体配置过程见最后【备注】
+	选择一个数据集进行测试：（test为其中一个数据集的文件夹名）
+运行代码需要用到两个lua文件。
+（1）	rnnTracker.lua
+在该lua代码中，如下代码：
+-- main options
+cmd:option('-model_name','rnnTracker','main model name')
+cmd:option('-model_sign','r300_l1_n1_m1_d4','model signature')
+cmd:option('-M',20,'Max number of total detections per frame')
+cmd:option('-N',0,'Max number of max targets per frame. (0=based on max dets)')
+cmd:option('-seq_name','art','Sequence Name')
+cmd:option('-length',50,'number of frames to sample')
+cmd:option('-gtdet',0,'use ground truth detections')
+cmd:option('-normalize_data', 1, 'normalize data (zero-mean, std-dev 1')
+cmd:option('-clean_res', 0, 'remove potential false positives')
+cmd:option('-reset_state', 1, 'reset state each <tmp_win> frames')
+cmd:option('-detfile', '', 'detections file')
+cmd:option('-da', 4, '0=Hungarian, 1=GT, 2=learned')
+cmd:option('-pred', 0, '0=learned, 1=GT')
+cmd:option('-maxProb', 0, '0=raw probability, 1=max for each target')
+cmd:option('-resHA',0 , 'resolve identities with HA')
+cmd:option('-fixTracks',1 , 'show fixed tracks')
+cmd:option('-showEx',0 , 'show existence')
+
+是对rnn程序进行一个主要的参数设置。如：
+cmd:option('-seq_name','art','Sequence Name')
+可以设置运行时使用的数据集（此处为art,也可以自己手动修改为其他的）
+cmd:option('-length',50,'number of frames to sample')
+	可以修改读取图片序列的长度（此处为读取前50帧图片）
+
+另外，在实际运行时，通过终端命令：
+	th rnnTracker.lua -model_name rnnTracker -seq_name art -length 50
+的方式直接进行参数设置。
+	运行该条命令后，会出现如下类似的结果：
+ 
+注：使用不同的数据集会出现不同的结果。 
+
+注：如果要使用自己的数据，应该准备如下的文件：
+	在你的数据集文件夹（如test数据集，自己命名）下，创建两个子文件夹
+（1）	det （2）img1
+其中det中必须有det.txt文件，该det.txt文件是对视频进行目标检测生成的数据。
+img1是对要跟踪视频的切片（使用OpenCV或者ffmpeg进行按帧切片生成的一系列图片）图片的名称以000001.jpg格式命名
+
+
+
+
+结果可视化：
+和运行rnnTracker.lua一样，运行如下命令：
+th visBoxes.lua -file ../out/rnnTracker_r300_l1_n1_m1_d4/ test.txt –seq_name test
+
+注：（1）test.txt是运行rnnTracker.lua生成的文件，其格式和det.txt相同。
+	（2）-seq_name test是使用test这个数据集。
+	（3）程序会自动查找到数据集文件夹下的图片目录
+
+在visBoxs.lua中
+在作者给定的数据集中，每一帧都存在有人的情况，即在det.txt中，不存在缺帧的数据。故可以完整显示出来。
+
+但是，在使用实际视频测试的过程中，存在某一段时间没有人的情况，即在det.txt中，存在缺帧的数据，所以不能完全显示跟踪的结果。
+目前考虑的解决方法是：针对缺帧的数据，使用代码人为补全：
+ 
+注：在visBox.lua中50行左右，修改成如上的代码，进行空值处理。
+通过如上处理，基本可以解决缺帧的情况，在实际测试中，表现良好。
+
+
+
+
+
+
+【备注】
+
+搭建环境之后，在https://bitbucket.org/amilan/rnntracking中，下载源码
+下载数据集
+解压源码，数据集
+修改src-->util-->paths.lua中的数据，用来配置数据集的位置。
+ 
+在图中的最后一个elseif中修改位置，意思是只要某一个文件夹存在就把需要读取的数据集的路径改为某一个路径，可以修改这两个路径，最后指向数据集的路径，路径指向数据集中的test或者train路径。（当训练模型时一定要使用train中的数据，因为只有这里面的数据集才存在gt）例如：
+ 
+
+修改完之后就可以使用trainBF.lua来训练模型，具体的步骤是，在src目录下运行th trainBF.lua -config ../config/configBF.txt  ，可以添加其他的参数，和rnnTracker.lua类似。
+
+	
